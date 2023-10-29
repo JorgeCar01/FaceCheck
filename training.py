@@ -3,14 +3,10 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, random_split
 from torchvision import datasets, transforms, models
-from tqdm.notebook import tqdm
-
-
-print('1. Data Loading and Preprocessing:')
+from tqdm import tqdm
 
 # Check if CUDA is available
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 
 # Transformations
 transform = transforms.Compose([
@@ -19,103 +15,80 @@ transform = transforms.Compose([
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 ])
 
-print('Load Digi-Face 1M')
+# Load Digi-Face 1M'
 path_to_digi_face = r'C:\School\csci 4353\data\DigiFace'
 digi_face_dataset = datasets.ImageFolder(root=path_to_digi_face, transform=transform)
 
-print('Load CelebA')
-path_to_celeba = r'C:\School\csci 4353\data\CelebA'
-celeba_dataset = datasets.ImageFolder(root=path_to_celeba, transform=transform)
-
-print('2. Model Definition:')
-model = models.resnet18(weights=None, progress=True)
-model.fc = nn.Linear(model.fc.in_features, len(digi_face_dataset.classes))  # Adjust for number of classes in Digi-Face 1M
+# Model Definition:
+model = models.resnet18(pretrained=True, progress=True)
+model.fc = nn.Linear(model.fc.in_features, len(digi_face_dataset.classes))
 model.to(device)
 
 criterion = nn.CrossEntropyLoss()
 criterion = criterion.to(device)
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-print('3. Training:')
+# Training:
+import time
 
-def train_model(model, dataloader, criterion, optimizer):
-    model.train()
-    total_loss = 0.0
-    correct = 0
-    total = 0
+def train_model(model, dataloader_dict, criterion, optimizer, num_epoch):
+    since = time.time()
+    best_acc = 0.0
 
-    for inputs, labels in tqdm(dataloader):
-        inputs, labels = inputs.to(device), labels.to(device)
-        outputs = model(inputs)
+    for epoch in range(num_epoch):
+        print('Epoch {}/{}'.format(epoch + 1, num_epoch))
+        print('-'*20)
 
-        _, predicted = torch.max(outputs.data, 1)
-        total += labels.size(0)
-        correct += (predicted == labels).sum().item()
+        for phase in ['train', 'val']:
+            if phase == 'train':
+                model.train()
+            else:
+                model.eval()
 
-        loss = criterion(outputs, labels)
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        total_loss += loss.item()
-    
-    accuracy = correct / total
-    return total_loss / len(dataloader), accuracy
+            epoch_loss = 0.0
+            epoch_corrects = 0
 
-def evaluate_model(model, dataloader, criterion):
-    model.eval()
-    total_loss = 0.0
-    correct = 0
-    total = 0
+            for inputs, labels in tqdm(dataloader_dict[phase]):
+                inputs = inputs.to(device)
+                labels = labels.to(device)
+                optimizer.zero_grad()
 
-    with torch.no_grad():
-        for inputs, labels in tqdm(dataloader):
-            inputs, labels = inputs.to(device), labels.to(device)
-            outputs = model(inputs)
+                with torch.set_grad_enabled(phase == 'train'):
+                    outputs = model(inputs)
+                    _, preds = torch.max(outputs, 1)
+                    loss = criterion(outputs, labels)
 
-            _, predicted = torch.max(outputs.data, 1)
-            total += labels.size(0)
-            correct += (predicted == labels).sum().item()
+                    if phase == 'train':
+                        loss.backward()
+                        optimizer.step()
 
-            loss = criterion(outputs, labels)
-            total_loss += loss.item()
+                    epoch_loss += loss.item() * inputs.size(0)
+                    epoch_corrects += torch.sum(preds == labels.data)
 
-        accuracy = correct / total
-    return total_loss / len(dataloader), accuracy
+            epoch_loss = epoch_loss / len(dataloader_dict[phase].dataset)
+            epoch_acc = epoch_corrects.double() / len(dataloader_dict[phase].dataset)
+            print('{} Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc))
 
-print('Training on Digi-Face 1M first:')
+            if phase == 'val' and epoch_acc > best_acc:
+                best_acc = epoch_acc
+                best_model_wts = model.state_dict()
 
+    time_elapsed = time.time() - since
+    print('Training complete in {:.0f}m {:.0f}s'.format(
+        time_elapsed // 60, time_elapsed % 60))
+    print('Best val Acc: {:4f}'.format(best_acc))
+    return model
+
+# Training on Digi-Face 1M:
 train_size = int(0.8 * len(digi_face_dataset))
 val_size = len(digi_face_dataset) - train_size
 train_dataset, val_dataset = random_split(digi_face_dataset, [train_size, val_size])
 
 train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
-
+dataloader_dict = {'train' : train_loader, 'val' : val_loader}
 num_epochs = 10
-for epoch in range(num_epochs):
-    print(f"Start Epoch {epoch}")
-    train_loss, train_acc = train_model(model, train_loader, criterion, optimizer)
-    val_loss, val_acc = evaluate_model(model, val_loader, criterion)
-    print(f"Epoch {epoch+1}/{num_epochs} (Digi-Face 1M) - Train Loss: {train_loss:.4f}, Train Accuracy: {train_acc:.4f}\nVal Loss: {val_loss:.4f}, Val Accuracy: {val_acc:.4f}")
+model = train_model(model, dataloader_dict, criterion, optimizer, num_epochs)
 
-print('Fine-tuning on CelebA:')
-
-model.fc = nn.Linear(model.fc.in_features, len(celeba_dataset.classes))  # Adjust for number of classes in CelebA
-
-train_size = int(0.8 * len(celeba_dataset))
-val_size = len(celeba_dataset) - train_size
-train_dataset, val_dataset = random_split(celeba_dataset, [train_size, val_size])
-
-train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
-
-model.to(device)
-
-num_epochs = 10
-for epoch in range(num_epochs):
-    train_loss, train_acc = train_model(model, train_loader, criterion, optimizer)
-    val_loss, val_acc = evaluate_model(model, val_loader, criterion)
-    print(f"Epoch {epoch+1}/{num_epochs} (CelebA) - Train Loss: {train_loss:.4f}, Train Accuracy: {train_acc:.4f}\nVal Loss: {val_loss:.4f}, Val Accuracy: {val_acc:.4f}")
-
-print('Save the fine-tuned model')
-torch.save(model.state_dict(), "face_recognition_model_finetuned.pth")
+# Save the model
+torch.save(model.state_dict(), "face_recognition_model_digi_face.pth")
