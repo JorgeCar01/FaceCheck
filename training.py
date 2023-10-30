@@ -7,6 +7,7 @@ from tqdm import tqdm
 
 # Check if CUDA is available
 print(torch.cuda.is_available())
+print(torch.cuda.is_available())
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Transformations
@@ -19,8 +20,14 @@ print("Loading Dataset")
 # Load dataset
 path_to_data = r'C:\School\csci 4353\data'
 dataset = datasets.ImageFolder(root=path_to_data, transform=transform)
+print("Loading Dataset")
+# Load dataset
+path_to_data = r'C:\School\csci 4353\data'
+dataset = datasets.ImageFolder(root=path_to_data, transform=transform)
 
 # Model Definition:
+model = models.resnet18(pretrained=False, progress=True)
+model.fc = nn.Linear(model.fc.in_features, len(dataset.classes))
 model = models.resnet18(pretrained=False, progress=True)
 model.fc = nn.Linear(model.fc.in_features, len(dataset.classes))
 model.to(device)
@@ -29,6 +36,7 @@ criterion = nn.CrossEntropyLoss()
 criterion = criterion.to(device)
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
+# Training:A
 # Training:A
 import time
 
@@ -84,11 +92,16 @@ def train_model(model, dataloader_dict, criterion, optimizer, num_epoch):
 train_size = int(0.8 * len(dataset))
 val_size = len(dataset) - train_size
 train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
+# Training:
+train_size = int(0.8 * len(dataset))
+val_size = len(dataset) - train_size
+train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
 
 train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
 dataloader_dict = {'train' : train_loader, 'val' : val_loader}
 num_epochs = 10
+print("Starting to Train")
 print("Starting to Train")
 model = train_model(model, dataloader_dict, criterion, optimizer, num_epochs)
 
