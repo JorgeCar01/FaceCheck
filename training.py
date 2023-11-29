@@ -20,23 +20,16 @@ print("Loading Dataset")
 # Load dataset
 path_to_data = r'C:\School\csci 4353\data'
 dataset = datasets.ImageFolder(root=path_to_data, transform=transform)
-print("Loading Dataset")
-# Load dataset
-path_to_data = r'C:\School\csci 4353\data'
-dataset = datasets.ImageFolder(root=path_to_data, transform=transform)
+
 
 # Model Definition:
 model = models.resnet18(pretrained=False, progress=True)
 model.fc = nn.Linear(model.fc.in_features, len(dataset.classes))
-model = models.resnet18(pretrained=False, progress=True)
-model.fc = nn.Linear(model.fc.in_features, len(dataset.classes))
-model.to(device)
 
 criterion = nn.CrossEntropyLoss()
 criterion = criterion.to(device)
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-# Training:A
 # Training:A
 import time
 
@@ -88,10 +81,6 @@ def train_model(model, dataloader_dict, criterion, optimizer, num_epoch):
     print('Best val Acc: {:4f}'.format(best_acc))
     return model
 
-# Training:
-train_size = int(0.8 * len(dataset))
-val_size = len(dataset) - train_size
-train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
 # Training:
 train_size = int(0.8 * len(dataset))
 val_size = len(dataset) - train_size
