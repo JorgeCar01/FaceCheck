@@ -58,11 +58,13 @@ def process_frame(cv2image):
     _, predicted_class_idx = predictions.max(1)
     predicted_class = dataset.classes[predicted_class_idx.item()]
 
-    if predicted_class and predicted_class not in students_detected and predicted_class != '20535048':
+    if predicted_class:
         print(predicted_class)
-        show_popup(predicted_class)
-        students_detected.add(predicted_class)
-
+        
+        if predicted_class not in students_detected:
+            show_popup(predicted_class)
+            students_detected.add(predicted_class)
+    
 def show_popup(label):
     # Create a top-level window
     global is_popup_open
